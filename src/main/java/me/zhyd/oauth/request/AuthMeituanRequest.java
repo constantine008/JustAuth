@@ -1,7 +1,5 @@
 package me.zhyd.oauth.request;
 
-import cn.hutool.http.HttpRequest;
-import cn.hutool.http.HttpResponse;
 import com.alibaba.fastjson.JSONObject;
 import me.zhyd.oauth.cache.AuthStateCache;
 import me.zhyd.oauth.config.AuthConfig;
@@ -13,7 +11,11 @@ import me.zhyd.oauth.model.AuthCallback;
 import me.zhyd.oauth.model.AuthResponse;
 import me.zhyd.oauth.model.AuthToken;
 import me.zhyd.oauth.model.AuthUser;
+import me.zhyd.oauth.utils.HttpUtils;
 import me.zhyd.oauth.utils.UrlBuilder;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 美团登录
@@ -33,13 +35,14 @@ public class AuthMeituanRequest extends AuthDefaultRequest {
 
     @Override
     protected AuthToken getAccessToken(AuthCallback authCallback) {
-        HttpResponse response = HttpRequest.post(source.accessToken())
-            .form("app_id", config.getClientId())
-            .form("secret", config.getClientSecret())
-            .form("code", authCallback.getCode())
-            .form("grant_type", "authorization_code")
-            .execute();
-        JSONObject object = JSONObject.parseObject(response.body());
+        Map<String, String> form = new HashMap<>(7);
+        form.put("app_id", config.getClientId());
+        form.put("secret", config.getClientSecret());
+        form.put("code", authCallback.getCode());
+        form.put("grant_type", "authorization_code");
+
+        String response = new HttpUtils(config.getHttpConfig()).post(source.accessToken(), form, false);
+        JSONObject object = JSONObject.parseObject(response);
 
         this.checkResponse(object);
 
@@ -52,16 +55,18 @@ public class AuthMeituanRequest extends AuthDefaultRequest {
 
     @Override
     protected AuthUser getUserInfo(AuthToken authToken) {
-        HttpResponse response = HttpRequest.post(source.userInfo())
-            .form("app_id", config.getClientId())
-            .form("secret", config.getClientSecret())
-            .form("access_token", authToken.getAccessToken())
-            .execute();
-        JSONObject object = JSONObject.parseObject(response.body());
+        Map<String, String> form = new HashMap<>(5);
+        form.put("app_id", config.getClientId());
+        form.put("secret", config.getClientSecret());
+        form.put("access_token", authToken.getAccessToken());
+
+        String response = new HttpUtils(config.getHttpConfig()).post(source.userInfo(), form, false);
+        JSONObject object = JSONObject.parseObject(response);
 
         this.checkResponse(object);
 
         return AuthUser.builder()
+            .rawUserInfo(object)
             .uuid(object.getString("openid"))
             .username(object.getString("nickname"))
             .nickname(object.getString("nickname"))
@@ -74,13 +79,14 @@ public class AuthMeituanRequest extends AuthDefaultRequest {
 
     @Override
     public AuthResponse refresh(AuthToken oldToken) {
-        HttpResponse response = HttpRequest.post(source.refresh())
-            .form("app_id", config.getClientId())
-            .form("secret", config.getClientSecret())
-            .form("refresh_token", oldToken.getRefreshToken())
-            .form("grant_type", "refresh_token")
-            .execute();
-        JSONObject object = JSONObject.parseObject(response.body());
+        Map<String, String> form = new HashMap<>(7);
+        form.put("app_id", config.getClientId());
+        form.put("secret", config.getClientSecret());
+        form.put("refresh_token", oldToken.getRefreshToken());
+        form.put("grant_type", "refresh_token");
+
+        String response = new HttpUtils(config.getHttpConfig()).post(source.refresh(), form, false);
+        JSONObject object = JSONObject.parseObject(response);
 
         this.checkResponse(object);
 
@@ -102,11 +108,7 @@ public class AuthMeituanRequest extends AuthDefaultRequest {
 
     @Override
     public String authorize(String state) {
-        return UrlBuilder.fromBaseUrl(source.authorize())
-            .queryParam("response_type", "code")
-            .queryParam("app_id", config.getClientId())
-            .queryParam("redirect_uri", config.getRedirectUri())
-            .queryParam("state", getRealState(state))
+        return UrlBuilder.fromBaseUrl(super.authorize(state))
             .queryParam("scope", "")
             .build();
     }

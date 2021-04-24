@@ -47,6 +47,11 @@ public enum AuthDefaultSource implements AuthSource {
         public String userInfo() {
             return "https://api.weibo.com/2/users/show.json";
         }
+
+        @Override
+        public String revoke() {
+            return "https://api.weibo.com/oauth2/revokeoauth2";
+        }
     },
     /**
      * gitee
@@ -68,7 +73,7 @@ public enum AuthDefaultSource implements AuthSource {
         }
     },
     /**
-     * 钉钉
+     * 钉钉扫码登录
      */
     DINGTALK {
         @Override
@@ -84,6 +89,25 @@ public enum AuthDefaultSource implements AuthSource {
         @Override
         public String userInfo() {
             return "https://oapi.dingtalk.com/sns/getuserinfo_bycode";
+        }
+    },
+    /**
+     * 钉钉账号登录
+     */
+    DINGTALK_ACCOUNT {
+        @Override
+        public String authorize() {
+            return "https://oapi.dingtalk.com/connect/oauth2/sns_authorize";
+        }
+
+        @Override
+        public String accessToken() {
+            return DINGTALK.accessToken();
+        }
+
+        @Override
+        public String userInfo() {
+            return DINGTALK.userInfo();
         }
     },
     /**
@@ -135,41 +159,25 @@ public enum AuthDefaultSource implements AuthSource {
         }
     },
     /**
-     * Coding
+     * Coding，
+     * <p>
+     * 参考 https://help.coding.net/docs/project/open/oauth.html#%E7%94%A8%E6%88%B7%E6%8E%88%E6%9D%83 中的说明，
+     * 新版的 coding API 地址需要传入用户团队名，这儿使用动态参数，方便在 request 中使用
      */
     CODING {
         @Override
         public String authorize() {
-            return "https://coding.net/oauth_authorize.html";
+            return "https://%s.coding.net/oauth_authorize.html";
         }
 
         @Override
         public String accessToken() {
-            return "https://coding.net/api/oauth/access_token";
+            return "https://%s.coding.net/api/oauth/access_token";
         }
 
         @Override
         public String userInfo() {
-            return "https://coding.net/api/account/current_user";
-        }
-    },
-    /**
-     * 腾讯云开发者平台（coding升级后就变成腾讯云开发者平台了）
-     */
-    TENCENT_CLOUD {
-        @Override
-        public String authorize() {
-            return "https://dev.tencent.com/oauth_authorize.html";
-        }
-
-        @Override
-        public String accessToken() {
-            return "https://dev.tencent.com/api/oauth/access_token";
-        }
-
-        @Override
-        public String userInfo() {
-            return "https://dev.tencent.com/api/account/current_user";
+            return "https://%s.coding.net/api/account/current_user";
         }
     },
     /**
@@ -235,12 +243,36 @@ public enum AuthDefaultSource implements AuthSource {
         }
     },
     /**
-     * 微信
+     * 微信开放平台
      */
-    WECHAT {
+    WECHAT_OPEN {
         @Override
         public String authorize() {
             return "https://open.weixin.qq.com/connect/qrconnect";
+        }
+
+        @Override
+        public String accessToken() {
+            return "https://api.weixin.qq.com/sns/oauth2/access_token";
+        }
+
+        @Override
+        public String userInfo() {
+            return "https://api.weixin.qq.com/sns/userinfo";
+        }
+
+        @Override
+        public String refresh() {
+            return "https://api.weixin.qq.com/sns/oauth2/refresh_token";
+        }
+    },
+    /**
+     * 微信公众平台
+     */
+    WECHAT_MP {
+        @Override
+        public String authorize() {
+            return "https://open.weixin.qq.com/connect/oauth2/authorize";
         }
 
         @Override
@@ -302,17 +334,17 @@ public enum AuthDefaultSource implements AuthSource {
     FACEBOOK {
         @Override
         public String authorize() {
-            return "https://www.facebook.com/v3.3/dialog/oauth";
+            return "https://www.facebook.com/v10.0/dialog/oauth";
         }
 
         @Override
         public String accessToken() {
-            return "https://graph.facebook.com/v3.3/oauth/access_token";
+            return "https://graph.facebook.com/v10.0/oauth/access_token";
         }
 
         @Override
         public String userInfo() {
-            return "https://graph.facebook.com/v3.3/me";
+            return "https://graph.facebook.com/v10.0/me";
         }
     },
     /**
@@ -548,7 +580,7 @@ public enum AuthDefaultSource implements AuthSource {
     },
 
     /**
-     * 企业微信
+     * 企业微信二维码登录
      *
      * @since 1.10.0
      */
@@ -556,6 +588,26 @@ public enum AuthDefaultSource implements AuthSource {
         @Override
         public String authorize() {
             return "https://open.work.weixin.qq.com/wwopen/sso/qrConnect";
+        }
+
+        @Override
+        public String accessToken() {
+            return "https://qyapi.weixin.qq.com/cgi-bin/gettoken";
+        }
+
+        @Override
+        public String userInfo() {
+            return "https://qyapi.weixin.qq.com/cgi-bin/user/getuserinfo";
+        }
+    },
+
+    /**
+     * 企业微信网页登录
+     */
+    WECHAT_ENTERPRISE_WEB {
+        @Override
+        public String authorize() {
+            return "https://open.weixin.qq.com/connect/oauth2/authorize";
         }
 
         @Override
@@ -694,6 +746,234 @@ public enum AuthDefaultSource implements AuthSource {
         public String userInfo() {
             return "https://api.twitter.com/1.1/users/show.json";
         }
-    }
+    },
 
+    /**
+     * 飞书平台，企业自建应用授权登录，原逻辑由 beacon 集成于 1.14.0 版，但最新的飞书 api 已修改，并且飞书平台一直为 {@code Deprecated} 状态
+     * <p>
+     * 所以，最终修改该平台的实际发布版本为 1.15.9
+     *
+     * @since 1.15.9
+     */
+    FEISHU {
+        @Override
+        public String authorize() {
+            return "https://open.feishu.cn/open-apis/authen/v1/index";
+        }
+
+        @Override
+        public String accessToken() {
+            return "https://open.feishu.cn/open-apis/authen/v1/access_token";
+        }
+
+        @Override
+        public String userInfo() {
+            return "https://open.feishu.cn/open-apis/authen/v1/user_info";
+        }
+
+        @Override
+        public String refresh() {
+            return "https://open.feishu.cn/open-apis/authen/v1/refresh_access_token";
+        }
+    },
+    /**
+     * 京东
+     *
+     * @since 1.15.0
+     */
+    JD {
+        @Override
+        public String authorize() {
+            return "https://open-oauth.jd.com/oauth2/to_login";
+        }
+
+        @Override
+        public String accessToken() {
+            return "https://open-oauth.jd.com/oauth2/access_token";
+        }
+
+        @Override
+        public String userInfo() {
+            return "https://api.jd.com/routerjson";
+        }
+
+        @Override
+        public String refresh() {
+            return "https://open-oauth.jd.com/oauth2/refresh_token";
+        }
+    },
+
+    /**
+     * 阿里云
+     */
+    ALIYUN {
+        @Override
+        public String authorize() {
+            return "https://signin.aliyun.com/oauth2/v1/auth";
+        }
+
+        @Override
+        public String accessToken() {
+            return "https://oauth.aliyun.com/v1/token";
+        }
+
+        @Override
+        public String userInfo() {
+            return "https://oauth.aliyun.com/v1/userinfo";
+        }
+
+        @Override
+        public String refresh() {
+            return "https://oauth.aliyun.com/v1/token";
+        }
+    },
+
+    /**
+     * 喜马拉雅
+     */
+    XMLY {
+        @Override
+        public String authorize() {
+            return "https://api.ximalaya.com/oauth2/js/authorize";
+        }
+
+        @Override
+        public String accessToken() {
+            return "https://api.ximalaya.com/oauth2/v2/access_token";
+        }
+
+        @Override
+        public String userInfo() {
+            return "https://api.ximalaya.com/profile/user_info";
+        }
+
+        @Override
+        public String refresh() {
+            return "https://oauth.aliyun.com/v1/token";
+        }
+    },
+
+    /**
+     * Amazon
+     *
+     * @since 1.16.0
+     */
+    AMAZON {
+        @Override
+        public String authorize() {
+            return "https://www.amazon.com/ap/oa";
+        }
+
+        @Override
+        public String accessToken() {
+            return "https://api.amazon.com/auth/o2/token";
+        }
+
+        @Override
+        public String userInfo() {
+            return "https://api.amazon.com/user/profile";
+        }
+
+        @Override
+        public String refresh() {
+            return "https://api.amazon.com/auth/o2/token";
+        }
+    },
+    /**
+     * Slack
+     *
+     * @since 1.16.0
+     */
+    SLACK {
+        @Override
+        public String authorize() {
+            return "https://slack.com/oauth/v2/authorize";
+        }
+
+        /**
+         * 该 API 获取到的是 access token
+         *
+         * https://slack.com/api/oauth.token 获取到的是 workspace token
+         *
+         * @return String
+         */
+        @Override
+        public String accessToken() {
+            return "https://slack.com/api/oauth.v2.access";
+        }
+
+        @Override
+        public String userInfo() {
+            return "https://slack.com/api/users.info";
+        }
+
+        @Override
+        public String revoke() {
+            return "https://slack.com/api/auth.revoke";
+        }
+    },
+    /**
+     * line
+     *
+     * @since 1.16.0
+     */
+    LINE {
+        @Override
+        public String authorize() {
+            return "https://access.line.me/oauth2/v2.1/authorize";
+        }
+
+        @Override
+        public String accessToken() {
+            return "https://api.line.me/oauth2/v2.1/token";
+        }
+
+        @Override
+        public String userInfo() {
+            return "https://api.line.me/v2/profile";
+        }
+
+        @Override
+        public String refresh() {
+            return "https://api.line.me/oauth2/v2.1/token";
+        }
+
+        @Override
+        public String revoke() {
+            return "https://api.line.me/oauth2/v2.1/revoke";
+        }
+    },
+    /**
+     * Okta，
+     * <p>
+     * 团队/组织的域名不同，此处通过配置动态组装
+     *
+     * @since 1.16.0
+     */
+    OKTA {
+        @Override
+        public String authorize() {
+            return "https://%s.okta.com/oauth2/%s/v1/authorize";
+        }
+
+        @Override
+        public String accessToken() {
+            return "https://%s.okta.com/oauth2/%s/v1/token";
+        }
+
+        @Override
+        public String refresh() {
+            return "https://%s.okta.com/oauth2/%s/v1/token";
+        }
+
+        @Override
+        public String userInfo() {
+            return "https://%s.okta.com/oauth2/%s/v1/userinfo";
+        }
+
+        @Override
+        public String revoke() {
+            return "https://%s.okta.com/oauth2/%s/v1/revoke";
+        }
+    },
 }

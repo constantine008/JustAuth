@@ -1,15 +1,16 @@
 package me.zhyd.oauth.request;
 
-import cn.hutool.http.HttpResponse;
 import com.alibaba.fastjson.JSONObject;
 import me.zhyd.oauth.cache.AuthStateCache;
 import me.zhyd.oauth.config.AuthConfig;
 import me.zhyd.oauth.config.AuthDefaultSource;
 import me.zhyd.oauth.enums.AuthUserGender;
+import me.zhyd.oauth.enums.scope.AuthGitlabScope;
 import me.zhyd.oauth.exception.AuthException;
 import me.zhyd.oauth.model.AuthCallback;
 import me.zhyd.oauth.model.AuthToken;
 import me.zhyd.oauth.model.AuthUser;
+import me.zhyd.oauth.utils.AuthScopeUtils;
 import me.zhyd.oauth.utils.UrlBuilder;
 
 /**
@@ -30,8 +31,8 @@ public class AuthGitlabRequest extends AuthDefaultRequest {
 
     @Override
     protected AuthToken getAccessToken(AuthCallback authCallback) {
-        HttpResponse response = doPostAuthorizationCode(authCallback.getCode());
-        JSONObject object = JSONObject.parseObject(response.body());
+        String response = doPostAuthorizationCode(authCallback.getCode());
+        JSONObject object = JSONObject.parseObject(response);
 
         this.checkResponse(object);
 
@@ -46,12 +47,13 @@ public class AuthGitlabRequest extends AuthDefaultRequest {
 
     @Override
     protected AuthUser getUserInfo(AuthToken authToken) {
-        HttpResponse response = doGetUserInfo(authToken);
-        JSONObject object = JSONObject.parseObject(response.body());
+        String response = doGetUserInfo(authToken);
+        JSONObject object = JSONObject.parseObject(response);
 
         this.checkResponse(object);
 
         return AuthUser.builder()
+            .rawUserInfo(object)
             .uuid(object.getString("id"))
             .username(object.getString("username"))
             .nickname(object.getString("name"))
@@ -88,7 +90,7 @@ public class AuthGitlabRequest extends AuthDefaultRequest {
     @Override
     public String authorize(String state) {
         return UrlBuilder.fromBaseUrl(super.authorize(state))
-            .queryParam("scope", "read_user+openid+profile+email")
+            .queryParam("scope", this.getScopes("+", false, AuthScopeUtils.getDefaultScopes(AuthGitlabScope.values())))
             .build();
     }
 

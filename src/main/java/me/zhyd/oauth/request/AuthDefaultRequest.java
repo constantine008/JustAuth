@@ -1,7 +1,6 @@
 package me.zhyd.oauth.request;
 
-import cn.hutool.http.HttpRequest;
-import cn.hutool.http.HttpResponse;
+import com.xkcoding.http.util.UrlUtil;
 import me.zhyd.oauth.cache.AuthDefaultStateCache;
 import me.zhyd.oauth.cache.AuthStateCache;
 import me.zhyd.oauth.config.AuthConfig;
@@ -13,10 +12,9 @@ import me.zhyd.oauth.model.AuthCallback;
 import me.zhyd.oauth.model.AuthResponse;
 import me.zhyd.oauth.model.AuthToken;
 import me.zhyd.oauth.model.AuthUser;
-import me.zhyd.oauth.utils.AuthChecker;
-import me.zhyd.oauth.utils.StringUtils;
-import me.zhyd.oauth.utils.UrlBuilder;
-import me.zhyd.oauth.utils.UuidUtils;
+import me.zhyd.oauth.utils.*;
+
+import java.util.List;
 
 /**
  * 默认的request处理类
@@ -39,7 +37,7 @@ public abstract class AuthDefaultRequest implements AuthRequest {
         this.source = source;
         this.authStateCache = authStateCache;
         if (!AuthChecker.isSupportedAuth(config, source)) {
-            throw new AuthException(AuthResponseStatus.PARAMETER_INCOMPLETE);
+            throw new AuthException(AuthResponseStatus.PARAMETER_INCOMPLETE, source);
         }
         // 校验配置合法性
         AuthChecker.checkConfig(config, source);
@@ -75,7 +73,9 @@ public abstract class AuthDefaultRequest implements AuthRequest {
     public AuthResponse login(AuthCallback authCallback) {
         try {
             AuthChecker.checkCode(source, authCallback);
-            this.checkState(authCallback.getState());
+            if (!config.isIgnoreCheckState()) {
+                AuthChecker.checkState(authCallback.getState(), source, authStateCache);
+            }
 
             AuthToken authToken = this.getAccessToken(authCallback);
             AuthUser user = this.getUserInfo(authToken);
@@ -94,10 +94,15 @@ public abstract class AuthDefaultRequest implements AuthRequest {
      */
     private AuthResponse responseError(Exception e) {
         int errorCode = AuthResponseStatus.FAILURE.getCode();
+        String errorMsg = e.getMessage();
         if (e instanceof AuthException) {
-            errorCode = ((AuthException) e).getErrorCode();
+            AuthException authException = ((AuthException) e);
+            errorCode = authException.getErrorCode();
+            if (StringUtils.isNotEmpty(authException.getErrorMsg())) {
+                errorMsg = authException.getErrorMsg();
+            }
         }
-        return AuthResponse.builder().code(errorCode).msg(e.getMessage()).build();
+        return AuthResponse.builder().code(errorCode).msg(errorMsg).build();
     }
 
     /**
@@ -203,73 +208,87 @@ public abstract class AuthDefaultRequest implements AuthRequest {
      * 通用的 authorizationCode 协议
      *
      * @param code code码
-     * @return HttpResponse
+     * @return Response
      */
-    protected HttpResponse doPostAuthorizationCode(String code) {
-        return HttpRequest.post(accessTokenUrl(code)).execute();
+    protected String doPostAuthorizationCode(String code) {
+        return new HttpUtils(config.getHttpConfig()).post(accessTokenUrl(code));
     }
 
     /**
      * 通用的 authorizationCode 协议
      *
      * @param code code码
-     * @return HttpResponse
+     * @return Response
      */
-    protected HttpResponse doGetAuthorizationCode(String code) {
-        return HttpRequest.get(accessTokenUrl(code)).execute();
+    protected String doGetAuthorizationCode(String code) {
+        return new HttpUtils(config.getHttpConfig()).get(accessTokenUrl(code));
     }
 
     /**
      * 通用的 用户信息
      *
      * @param authToken token封装
-     * @return HttpResponse
+     * @return Response
      */
     @Deprecated
-    protected HttpResponse doPostUserInfo(AuthToken authToken) {
-        return HttpRequest.post(userInfoUrl(authToken)).execute();
+    protected String doPostUserInfo(AuthToken authToken) {
+        return new HttpUtils(config.getHttpConfig()).post(userInfoUrl(authToken));
     }
 
     /**
      * 通用的 用户信息
      *
      * @param authToken token封装
-     * @return HttpResponse
+     * @return Response
      */
-    protected HttpResponse doGetUserInfo(AuthToken authToken) {
-        return HttpRequest.get(userInfoUrl(authToken)).execute();
+    protected String doGetUserInfo(AuthToken authToken) {
+        return new HttpUtils(config.getHttpConfig()).get(userInfoUrl(authToken));
     }
 
     /**
      * 通用的post形式的取消授权方法
      *
      * @param authToken token封装
-     * @return HttpResponse
+     * @return Response
      */
     @Deprecated
-    protected HttpResponse doPostRevoke(AuthToken authToken) {
-        return HttpRequest.post(revokeUrl(authToken)).execute();
+    protected String doPostRevoke(AuthToken authToken) {
+        return new HttpUtils(config.getHttpConfig()).post(revokeUrl(authToken));
     }
 
     /**
      * 通用的post形式的取消授权方法
      *
      * @param authToken token封装
-     * @return HttpResponse
+     * @return Response
      */
-    protected HttpResponse doGetRevoke(AuthToken authToken) {
-        return HttpRequest.get(revokeUrl(authToken)).execute();
+    protected String doGetRevoke(AuthToken authToken) {
+        return new HttpUtils(config.getHttpConfig()).get(revokeUrl(authToken));
     }
 
-
     /**
-     * 校验回调传回的state
+     * 获取以 {@code separator}分割过后的 scope 信息
      *
-     * @param state {@code state}一定不为空
+     * @param separator     多个 {@code scope} 间的分隔符
+     * @param encode        是否 encode 编码
+     * @param defaultScopes 默认的 scope， 当客户端没有配置 {@code scopes} 时启用
+     * @return String
+     * @since 1.16.7
      */
-    protected void checkState(String state) {
-        if (StringUtils.isEmpty(state) || !authStateCache.containsKey(state)) {
-            throw new AuthException(AuthResponseStatus.ILLEGAL_REQUEST);
+    protected String getScopes(String separator, boolean encode, List<String> defaultScopes) {
+        List<String> scopes = config.getScopes();
+        if (null == scopes || scopes.isEmpty()) {
+            if (null == defaultScopes || defaultScopes.isEmpty()) {
+                return "";
+            }
+            scopes = defaultScopes;
         }
+        if (null == separator) {
+            // 默认为空格
+            separator = " ";
+        }
+        String scopeStr = String.join(separator, scopes);
+        return encode ? UrlUtil.urlEncode(scopeStr) : scopeStr;
     }
+
 }
